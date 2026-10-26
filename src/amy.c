@@ -2389,7 +2389,10 @@ static inline float rgain_of_pan(float pan) {
 }
 
 
-void mix_with_pan(SAMPLE *stereo_dest, SAMPLE *mono_src, float pan_start, float pan_end, float level) {
+// The two buffers never overlap (a bus's mix and its per-osc scratch); saying
+// so lets the compiler read each source sample once instead of re-reading it
+// after the store to the left channel.
+void mix_with_pan(SAMPLE *restrict stereo_dest, const SAMPLE *restrict mono_src, float pan_start, float pan_end, float level) {
     AMY_PROFILE_START(MIX_WITH_PAN)
     /* copy a block_size of mono samples into an interleaved stereo buffer, applying pan
        and the synth's level (iV). In stereo the level folds into the pan gain endpoints,
