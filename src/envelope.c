@@ -47,7 +47,14 @@ AMY_IRAM_ATTR SAMPLE compute_mod_scale(uint16_t osc, uint16_t which_source) {
         // this descent, so recheck here -- the same reason render_osc_wave
         // rechecks before following chained_osc.
         if(source != osc && synth[source] != NULL) {  // belt-and-braces; assignment already rejects self as source
-            hold_and_modify(source);
+            // compute_mod_value() memoizes the modulator's value per block,
+            // so only its first consumer this block needs the modulator's
+            // parameters brought up to date. A voice's operators all share
+            // one LFO: re-running hold_and_modify for each of them was most
+            // of an FM voice's control-rate cost, and every result after
+            // the first went unused.
+            if (synth[source]->mod_value_clock != amy_global.total_blocks*AMY_BLOCK_SIZE)
+                hold_and_modify(source);
             return compute_mod_value(source);
         }
     }
