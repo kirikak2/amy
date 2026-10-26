@@ -80,6 +80,7 @@ amy_config_t amy_default_config() {
     #endif    
     // Per-osc synth state follows the event pool unless a target overrides.
     c.ram_caps_oscs = c.ram_caps_events;
+    c.ram_caps_reverb = c.ram_caps_delay;
 
     c.capture_device_id = -1;
     c.playback_device_id = -1;

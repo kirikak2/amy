@@ -242,21 +242,29 @@ void config_stereo_reverb(reverb_params_t *rev, float a_liveness, float crossove
 #define REF6SAMPS 602   // 13.645 ms
 
 
+// A reverb line in ram_caps_reverb, or in ram_caps_delay if that is full.
+static delay_line_t *new_reverb_line(int len, int fixed_delay) {
+    delay_line_t *line = new_delay_line(len, fixed_delay, amy_global.config.ram_caps_reverb);
+    if (line == NULL && amy_global.config.ram_caps_reverb != amy_global.config.ram_caps_delay)
+        line = new_delay_line(len, fixed_delay, amy_global.config.ram_caps_delay);
+    return line;
+}
+
 bool init_stereo_reverb(reverb_params_t *rev) {
     if (rev->delay_1 != NULL)
         return true;  // already initialised
 
-    rev->delay_1 = new_delay_line(DELAY_POW2, DELAY1SAMPS, amy_global.config.ram_caps_delay);
-    rev->delay_2 = new_delay_line(DELAY_POW2, DELAY2SAMPS, amy_global.config.ram_caps_delay);
-    rev->delay_3 = new_delay_line(DELAY_POW2, DELAY3SAMPS, amy_global.config.ram_caps_delay);
-    rev->delay_4 = new_delay_line(DELAY_POW2, DELAY4SAMPS, amy_global.config.ram_caps_delay);
+    rev->delay_1 = new_reverb_line(DELAY_POW2, DELAY1SAMPS);
+    rev->delay_2 = new_reverb_line(DELAY_POW2, DELAY2SAMPS);
+    rev->delay_3 = new_reverb_line(DELAY_POW2, DELAY3SAMPS);
+    rev->delay_4 = new_reverb_line(DELAY_POW2, DELAY4SAMPS);
 
-    rev->ref_1 = new_delay_line(4096, REF1SAMPS, amy_global.config.ram_caps_delay);
-    rev->ref_2 = new_delay_line(2048, REF2SAMPS, amy_global.config.ram_caps_delay);
-    rev->ref_3 = new_delay_line(2048, REF3SAMPS, amy_global.config.ram_caps_delay);
-    rev->ref_4 = new_delay_line(1024, REF4SAMPS, amy_global.config.ram_caps_delay);
-    rev->ref_5 = new_delay_line(1024, REF5SAMPS, amy_global.config.ram_caps_delay);
-    rev->ref_6 = new_delay_line(1024, REF6SAMPS, amy_global.config.ram_caps_delay);
+    rev->ref_1 = new_reverb_line(4096, REF1SAMPS);
+    rev->ref_2 = new_reverb_line(2048, REF2SAMPS);
+    rev->ref_3 = new_reverb_line(2048, REF3SAMPS);
+    rev->ref_4 = new_reverb_line(1024, REF4SAMPS);
+    rev->ref_5 = new_reverb_line(1024, REF5SAMPS);
+    rev->ref_6 = new_reverb_line(1024, REF6SAMPS);
 
     if (rev->delay_1 == NULL || rev->delay_2 == NULL || rev->delay_3 == NULL || rev->delay_4 == NULL ||
         rev->ref_1 == NULL || rev->ref_2 == NULL || rev->ref_3 == NULL ||
