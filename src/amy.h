@@ -1083,6 +1083,11 @@ typedef struct  {
     uint32_t ram_caps_block;
     uint32_t ram_caps_fbl;
     uint32_t ram_caps_delay;
+    // Reverb delay lines (~110 KB, ten lines read and written every sample).
+    // Defaults to ram_caps_delay; a host with internal RAM to spare can put
+    // them there while the big echo lines stay in PSRAM. Falls back to
+    // ram_caps_delay if the allocation fails.
+    uint32_t ram_caps_reverb;
     uint32_t ram_caps_sample;
 
     // device ids for miniaudio platforms
