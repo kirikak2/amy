@@ -129,7 +129,7 @@ static inline void copy(SAMPLE* a, SAMPLE* b) {
     bcopy((void *)a, (void *)b, nbytes);
 }
 
-SAMPLE render_mod(SAMPLE *in, SAMPLE* out, uint16_t osc, SAMPLE feedback_level, uint16_t algo_osc, SAMPLE amp) {
+SAMPLE render_mod(SAMPLE *in, SAMPLE* out, uint16_t osc, SAMPLE feedback_level, uint16_t algo_osc, SAMPLE amp, bool need_max) {
 
     hold_and_modify(osc);
     //printf("render_mod: osc %d msynth.amp %f\n", osc, msynth[osc]->amp);
@@ -138,7 +138,7 @@ SAMPLE render_mod(SAMPLE *in, SAMPLE* out, uint16_t osc, SAMPLE feedback_level, 
     // in = mod
     // so render_mod is mod, buf (out)
     SAMPLE max_value = 0;
-    if(synth[osc]->wave == SINE) max_value = render_fm_sine(out, osc, in, feedback_level, algo_osc, amp);
+    if(synth[osc]->wave == SINE) max_value = render_fm_sine(out, osc, in, feedback_level, algo_osc, amp, need_max);
     return max_value;
 }
 
@@ -258,7 +258,8 @@ SAMPLE render_algo(SAMPLE* buf, uint16_t osc, uint8_t core) {
         if(AMY_IS_SET(synth[osc]->algo_source[op])
            && synth[synth[osc]->algo_source[op]] != NULL
            && synth[synth[osc]->algo_source[op]]->role == SYNTH_IS_ALGO_SOURCE) {
-            value = render_mod(in_buf, out_buf, synth[osc]->algo_source[op], feedback_level, osc, mod_amp);
+            value = render_mod(in_buf, out_buf, synth[osc]->algo_source[op], feedback_level, osc, mod_amp,
+                               out_buf == buf /* only the voice output's peak is read */);
         } // If osc is not set, output has already been cleared.
         if (out_buf == buf && value > max_value)  max_value = value;
 

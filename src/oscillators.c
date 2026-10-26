@@ -789,7 +789,64 @@ void _fm_sine_note_on(uint16_t osc, float freq) {
     }
 }
 
-SAMPLE render_fm_sine(SAMPLE* buf, uint16_t osc, SAMPLE* mod, SAMPLE feedback_level, uint16_t algo_osc, SAMPLE mod_amp) {
+#ifdef AMY_USE_FIXEDPOINT
+// The FM operator render loops, for the one table an operator reads: the
+// 256-entry sine, whose guard point (table[256] == table[0]) lets the second
+// tap skip the index mask. The phase is carried as a full 32-bit phasor
+// (s_31 << 1), so it wraps by integer overflow instead of a mask per sample.
+// Taps, fraction and wrapped phase are the values RENDER_LUT_GUTS computes,
+// so the output is bit-identical to render_lut_fm / _fb / _fm_fb / _256.
+// MAX = 0 drops the peak tracking, for operators that only feed another
+// operator: nobody reads their peak. noinline keeps each a hardware loop.
+#define FM_SINE_SHIFT (P_FRAC_BITS - S_FRAC_BITS + 1)  // SAMPLE -> 32-bit phasor
+#define FM_SINE_256(NAME, MOD, FB, MAX) \
+static AMY_NOINLINE AMY_IRAM_ATTR PHASOR NAME(SAMPLE *buf, PHASOR phase, PHASOR step, \
+        SAMPLE incoming_amp, SAMPLE ending_amp, const LUTSAMPLE *table, \
+        const SAMPLE *mod, SAMPLE feedback_level, SAMPLE *last_two, SAMPLE *pmax_value) { \
+    uint32_t uphase = (uint32_t)phase << 1; \
+    uint32_t ustep = (uint32_t)step << 1; \
+    SAMPLE max_value = 0; \
+    SAMPLE current_amp = incoming_amp; \
+    SAMPLE incremental_amp = SHIFTR(ending_amp - incoming_amp, BLOCK_SIZE_BITS); \
+    SAMPLE sample = 0, past0 = 0, past1 = 0; \
+    if (FB) { sample = last_two[0]; past0 = last_two[1]; } \
+    for (uint16_t i = 0; i < AMY_BLOCK_SIZE; i++) { \
+        uint32_t total = uphase; \
+        if (MOD) total += (uint32_t)mod[i] << FM_SINE_SHIFT; \
+        if (FB) { \
+            past1 = past0; \
+            past0 = sample; \
+            total += (uint32_t)MUL4_SS(feedback_level, SHIFTR(past1 + past0, 1)) << FM_SINE_SHIFT; \
+        } \
+        int base_index = total >> 24; \
+        SAMPLE frac = (SAMPLE)((total << 8) >> 9); \
+        SAMPLE b = L2S(table[base_index]); \
+        SAMPLE c = L2S(table[base_index + 1]); \
+        sample = b + MUL0_SS(c - b, frac); \
+        SAMPLE value = buf[i] + MULA_SS(sample, current_amp); \
+        buf[i] = value; \
+        if (MAX) { \
+            if (value < 0) value = -value; \
+            if (value > max_value) max_value = value; \
+        } \
+        current_amp += incremental_amp; \
+        uphase += ustep; \
+    } \
+    if (FB) { last_two[0] = sample; last_two[1] = past0; } \
+    *pmax_value = max_value; \
+    return (PHASOR)(uphase >> 1); \
+}
+FM_SINE_256(fm_sine_256,          0, 0, 1)
+FM_SINE_256(fm_sine_256_mod,      1, 0, 1)
+FM_SINE_256(fm_sine_256_fb,       0, 1, 1)
+FM_SINE_256(fm_sine_256_mod_fb,   1, 1, 1)
+FM_SINE_256(fm_sine_256_nomax,        0, 0, 0)
+FM_SINE_256(fm_sine_256_mod_nomax,    1, 0, 0)
+FM_SINE_256(fm_sine_256_fb_nomax,     0, 1, 0)
+FM_SINE_256(fm_sine_256_mod_fb_nomax, 1, 1, 0)
+#endif
+
+SAMPLE render_fm_sine(SAMPLE* buf, uint16_t osc, SAMPLE* mod, SAMPLE feedback_level, uint16_t algo_osc, SAMPLE mod_amp, bool need_max) {
     if(AMY_IS_SET(synth[osc]->logratio)) {
         msynth[osc]->logfreq = msynth[algo_osc]->logfreq + synth[osc]->logratio;
     }
@@ -799,12 +856,36 @@ SAMPLE render_fm_sine(SAMPLE* buf, uint16_t osc, SAMPLE* mod, SAMPLE feedback_le
     SAMPLE amp = MUL8_SS(F2S(msynth[osc]->amp), mod_amp);
     SAMPLE last_amp = MUL8_SS(F2S(msynth[osc]->last_amp), mod_amp);
     SAMPLE max_value;
-    if (feedback_level > 0 && mod)
+    bool fb = feedback_level > 0;
+#ifdef AMY_USE_FIXEDPOINT
+    // Every path below reads the 256-entry sine (the no-input one always,
+    // the others through synth[osc]->lut, chosen from sine_fxpt_lutset).
+    const LUTSAMPLE *table = sine_fxpt_lutset[0].table;
+    if (!(fb || mod) || (synth[osc]->lut != NULL && synth[osc]->lut->table == table)) {
+        typedef PHASOR (*fm_sine_fn)(SAMPLE *, PHASOR, PHASOR, SAMPLE, SAMPLE, const LUTSAMPLE *,
+                                     const SAMPLE *, SAMPLE, SAMPLE *, SAMPLE *);
+        // [need_max][mod][fb]
+        static const fm_sine_fn fns[2][2][2] = {
+            { { fm_sine_256_nomax, fm_sine_256_fb_nomax }, { fm_sine_256_mod_nomax, fm_sine_256_mod_fb_nomax } },
+            { { fm_sine_256,       fm_sine_256_fb       }, { fm_sine_256_mod,       fm_sine_256_mod_fb       } },
+        };
+#ifdef AMY_DEBUG
+        enum itags tag = fb ? (mod ? RENDER_LUT_FM_FB : RENDER_LUT_FB) : (mod ? RENDER_LUT_FM : RENDER_LUT_256);
+#endif
+        AMY_PROFILE_START(tag)
+        synth[osc]->phase = fns[need_max][mod != NULL][fb](buf, synth[osc]->phase, step, last_amp, amp, table,
+                                                           mod, feedback_level, synth[osc]->last_two, &max_value);
+        AMY_PROFILE_STOP(tag)
+        msynth[osc]->last_amp = msynth[osc]->amp;
+        return max_value;
+    }
+#endif
+    if (fb && mod)
         synth[osc]->phase = render_lut_fm_fb(buf, synth[osc]->phase, step,
                                             last_amp, amp,
                                             synth[osc]->lut,
                                             mod, feedback_level, synth[osc]->last_two, &max_value);
-    else if (feedback_level > 0)
+    else if (fb)
         synth[osc]->phase = render_lut_fb(buf, synth[osc]->phase, step,
                                          last_amp, amp,
                                          synth[osc]->lut,
