@@ -1500,7 +1500,9 @@ extern SAMPLE render_sine(SAMPLE * buf, uint16_t osc);
 #ifdef AMY_WAVETABLE
 extern SAMPLE render_wavetable(SAMPLE * buf, uint16_t osc); 
 #endif
-extern SAMPLE render_fm_sine(SAMPLE *buf, uint16_t osc, SAMPLE *mod, SAMPLE feedback_level, uint16_t algo_osc, SAMPLE mod_amp);
+// need_max: whether the caller reads the returned peak (false for an operator
+// that only feeds another one, which skips the peak tracking).
+extern SAMPLE render_fm_sine(SAMPLE *buf, uint16_t osc, SAMPLE *mod, SAMPLE feedback_level, uint16_t algo_osc, SAMPLE mod_amp, bool need_max);
 extern SAMPLE render_pulse(SAMPLE * buf, uint16_t osc); 
 extern SAMPLE render_saw_down(SAMPLE * buf, uint16_t osc);
 extern SAMPLE render_saw_up(SAMPLE * buf, uint16_t osc);
