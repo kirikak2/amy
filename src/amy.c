@@ -2529,6 +2529,18 @@ AMY_IRAM_ATTR void amy_render(uint16_t start, uint16_t end, uint8_t core) {
     SAMPLE max_max = 0;
     for(uint16_t osc=start; osc<end; osc++) {
         if(synth[osc] != NULL && synth[osc]->status == SYNTH_AUDIBLE) { // skip oscs that are silent or mod sources from playback
+#ifndef __EMSCRIPTEN__
+            // A chained osc has already been rendered this block, into its
+            // chain head's buffer (render_osc_wave follows chained_osc), so
+            // rendering it here would be a no-op: skip clearing and mixing
+            // an all-zero buffer. A Juno voice is a head and four chained
+            // oscs, so this was four of its five mixes. Not with a render
+            // hook installed (the web one can't be checked for cheaply): a
+            // hook is offered every audible osc.
+            if (synth[osc]->render_clock == amy_global.total_samples
+                && amy_global.config.amy_external_render_hook == NULL)
+                continue;
+#endif
             uint16_t bus = synth[osc]->bus;
             bzero(per_osc_fb[core][bus], AMY_BLOCK_SIZE * sizeof(SAMPLE));
             SAMPLE max_val = render_osc_wave(osc, core, per_osc_fb[core][bus]);
