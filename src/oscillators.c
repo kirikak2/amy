@@ -256,6 +256,7 @@ AMY_IRAM_ATTR PHASOR render_lut_256(SAMPLE* buf,
     SAMPLE sample = 0;
     SAMPLE max_value = 0;
     SAMPLE current_amp = incoming_amp;
+    AMY_PROFILE_START(RENDER_LUT_256)
     SAMPLE incremental_amp = SHIFTR(ending_amp - incoming_amp, BLOCK_SIZE_BITS);
     phase = SHIFTL(phase, 1);  // Make phase into _32 instead of s_31
     step = SHIFTL(step, 1);
@@ -279,6 +280,7 @@ AMY_IRAM_ATTR PHASOR render_lut_256(SAMPLE* buf,
     }
     phase = SHIFTR(phase, 1);  // Restore phase to s_31
     *pmax_value = max_value;
+    AMY_PROFILE_STOP(RENDER_LUT_256)
     return phase;
 }
 

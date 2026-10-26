@@ -319,6 +319,7 @@ void stereo_reverb(reverb_params_t *rev, SAMPLE *r_in, SAMPLE *l_in, SAMPLE *r_o
     // https://www.ee.columbia.edu/~dpwe/e4896/papers/StautP82-reverb.pdf
 
 
+    AMY_PROFILE_START(STEREO_REVERB)
     // Early-reflection lines e1..e6, reverb delay lines dl1..dl4.
     DL_LOAD(e1, rev->ref_1);
     DL_LOAD(e2, rev->ref_2);
@@ -413,4 +414,5 @@ void stereo_reverb(reverb_params_t *rev, SAMPLE *r_in, SAMPLE *l_in, SAMPLE *r_o
     rev->f2state = f2state;
     rev->f3state = f3state;
     rev->f4state = f4state;
+    AMY_PROFILE_STOP(STEREO_REVERB)
 }

@@ -201,6 +201,7 @@ void algo_init() {
 
 SAMPLE render_algo(SAMPLE* buf, uint16_t osc, uint8_t core) {
     if (synth[osc]->wave_kind != WAVE_KIND_ALGO) return 0;  // no algorithm or sources
+    AMY_PROFILE_START(RENDER_ALGO)
     struct FmAlgorithm algo = algorithms[synth[osc]->algorithm];
     SAMPLE max_value = 0;
 
@@ -268,5 +269,6 @@ SAMPLE render_algo(SAMPLE* buf, uint16_t osc, uint8_t core) {
     }
     //fprintf(stderr, "render_algo: time %.3f osc %d last_amp %f amp %f max_val=%f\n", amy_global.time, osc, (msynth[osc]->last_amp), (msynth[osc]->amp), S2F(max_value));
     // TODO, i need to figure out what happens on note offs for algo_sources.. they should still render..
+    AMY_PROFILE_STOP(RENDER_ALGO)
     return max_value;
 }

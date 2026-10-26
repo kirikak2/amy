@@ -63,6 +63,9 @@ const char* profile_tag_name(enum itags tag) {
         case BLOCK_NORM: return "BLOCK_NORM";
         case CALIBRATE: return "CALIBRATE";
         case AMY_ESP_FILL_BUFFER: return "AMY_ESP_FILL_BUFFER";
+        case RENDER_ALGO: return "RENDER_ALGO";
+        case RENDER_LUT_256: return "RENDER_LUT_256";
+        case STEREO_REVERB: return "STEREO_REVERB";
         case NO_TAG: return "NO_TAG";
    }
    return "ERROR";
